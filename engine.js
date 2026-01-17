@@ -19,8 +19,7 @@ const { detectMarketRegime } = require("./marketRegime.js");
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const TEST_MODE = process.env.TEST_MODE === "true";
-console.log('TG TOKEN:', TELEGRAM_BOT_TOKEN);
-console.log('TG CHAT ID:', TELEGRAM_CHAT_ID);
+
 
 // ================= CONFIG =================
 const TRADE_WINDOW = 15 * 60 * 1000;
@@ -274,20 +273,20 @@ if (state[symbol].prices1m.length < MIN_1M_BARS) return;
   // ===== MULTI-TIMEFRAME WYCKOFF (C) =====
   const mtf = mtfFilter(symbol);
   if (!mtf) {
-    if (TEST_MODE) console.log(`[SKIP][MTF] ${symbol.toUpperCase()}`);
+    if (1) console.log(`[SKIP][MTF] ${symbol.toUpperCase()}`);
     return;
   }
 
   // ===== ORDER FLOW (A) =====
   const absorption = detectAbsorption(symbol);
   if (!absorption) {
-    if (TEST_MODE) console.log(`[SKIP][NO ABSORPTION] ${symbol.toUpperCase()}`);
+    if (1) console.log(`[SKIP][NO ABSORPTION] ${symbol.toUpperCase()}`);
     return;
   }
   // ===== VOLUME PROFILE (B) =====
   const vp = getVPLevels(symbol);
   if (!vp) {
-    if (TEST_MODE) console.log(`[SKIP][NO VP] ${symbol.toUpperCase()}`);
+    if (1) console.log(`[SKIP][NO VP] ${symbol.toUpperCase()}`);
     return;
   }
 
@@ -391,13 +390,13 @@ if (!TEST_MODE) {
   // ===== AUTO EXECUTION (F) =====
   // ==================================================
 
-  // await executeLong({
-  //   symbol: symbol.toUpperCase(),
-  //   entry: lastPrice,
-  //   stop: risk.stop,
-  //   target: risk.target,
-  //   sizeMultiplier: allocation.sizeMultiplier * regimeMultiplier
-  // });
+  await executeLong({
+    symbol: symbol.toUpperCase(),
+    entry: lastPrice,
+    stop: risk.stop,
+    target: risk.target,
+    sizeMultiplier: allocation.sizeMultiplier * regimeMultiplier
+  });
 
   // ===== REGISTER POSITION INTO PORTFOLIO (G) =====
   if (!TEST_MODE) {
@@ -448,7 +447,7 @@ async function start() {
         !["USDCUSDT", "BUSDUSDT", "TUSDUSDT", "FDUSDUSDT","USD1USDT"].includes(c.symbol)
     )
     .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume))
-    .slice(0, TEST_MODE ? 80 : 29)
+    .slice(0, TEST_MODE ? 80 : 80)
     .map((c) => c.symbol.toLowerCase());
 
   symbols.forEach((s) => {

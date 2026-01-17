@@ -4,8 +4,8 @@
 
 const fs = require('fs');
 
-const START_BALANCE = 10_000;
-const RISK_PER_TRADE = 0.01;
+const START_BALANCE = 10;
+const RISK_PER_TRADE = 0.2; // 20% of balance
 
 let balance = START_BALANCE;
 let peakBalance = START_BALANCE;
