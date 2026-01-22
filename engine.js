@@ -153,7 +153,32 @@ function detectAbsorption(symbol) {
   // if (Math.abs(delta) < ABSORPTION_DELTA_USD) return null;
   const threshold = getAbsorptionDeltaThreshold(symbol);
 
-  if (Math.abs(delta) < threshold) return null;
+  // ===== BUFFER =====
+  s.absorptionBuffer = s.absorptionBuffer || [];
+
+  s.absorptionBuffer.push({
+    time: Date.now(),
+    delta,
+    rangePct,
+  });
+
+  s.absorptionBuffer = s.absorptionBuffer.filter(
+    (x) => Date.now() - x.time < 10 * 60 * 1000,
+  );
+
+  // ===== RESET IF PRICE MOVED =====
+  if (rangePct > 0.8 / 100) {
+    s.absorptionBuffer = [];
+    return null;
+  }
+
+  // ===== CHECK =====
+  const totalDelta = s.absorptionBuffer.reduce((sum, x) => sum + x.delta, 0);
+
+  const singleShot = Math.abs(delta) >= threshold;
+  const accumulation = Math.abs(totalDelta) >= threshold;
+
+  if (!singleShot && !accumulation) return null;
 
   if (1) {
     console.log(
