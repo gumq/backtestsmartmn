@@ -238,7 +238,7 @@ async function detect(symbol) {
     s._lastHeartbeat = now;
   }
 
-  const MIN_1M_BARS = TEST_MODE ? 20 : 45;
+  const MIN_1M_BARS = TEST_MODE ? 20 : 120;
   if (s.prices1m.length < MIN_1M_BARS) return;
 
   cleanup(symbol);
