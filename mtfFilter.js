@@ -57,8 +57,7 @@ function mtfFilter(symbol, state, TEST_MODE) {
   if (
     !s ||
     !Array.isArray(s.prices1m) ||
-    !Array.isArray(s.prices15m) ||
-    !Array.isArray(s.prices1h)
+    !Array.isArray(s.prices15m) 
   ) {
     return null;
   }
@@ -66,25 +65,25 @@ function mtfFilter(symbol, state, TEST_MODE) {
   // ===== DETECT WYCKOFF =====
   const p1m = detectWyckoff(s.prices1m);
   const p15m = detectWyckoff(s.prices15m);
-  const p1h = detectWyckoff(s.prices1h);
+  // const p1h = detectWyckoff(s.prices1h);
 
-  if (!p1m || !p15m || !p1h) return null;
+  if (!p1m || !p15m ) return null;
 
   // ===== FILTER LOGIC =====
   if (!TEST_MODE) {
     // LIVE MODE – QUỸ KHÓ TÍNH
-    if (p1h === "Markdown") return null;
+    if (p15m === "Markdown") return null;
     if (["Markdown", "Phase E"].includes(p15m)) return null;
     if (!["Phase C", "Phase D", "Transition"].includes(p1m)) return null;
   } else {
     // TEST MODE – NỚI LỎNG ĐỂ THẤY NHIỀU CASE
-    if (p1h === "Markdown") return null;
+    if (p15m === "Markdown") return null;
     if (["Markdown", "Phase E"].includes(p15m)) return null;
     if (!["Phase B", "Phase C", "Phase D", "Transition"].includes(p1m))
       return null;
   }
 
-  return { p1m, p15m, p1h };
+  return { p1m, p15m };
 }
 
 module.exports = { mtfFilter };

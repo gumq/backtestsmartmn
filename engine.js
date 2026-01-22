@@ -84,17 +84,55 @@ onPositionClosed((symbol, info) => {
 });
 
 // ================= CLEANUP =================
+// function cleanup(symbol) {
+//   const now = Date.now();
+//   state[symbol].trades = state[symbol].trades.filter(
+//     (t) => now - t.time <= TRADE_WINDOW,
+//   );
+//   state[symbol].prices1m = state[symbol].prices1m.filter(
+//     (p) => now - p.time <= PRICE_WINDOW,
+//   );
+//   state[symbol].cvdHistory = state[symbol].cvdHistory.filter(
+//     (d) => now - d.time <= CVD_HISTORY_WINDOW,
+//   );
+// }
 function cleanup(symbol) {
+  const s = state[symbol];
+  if (!s) return;
+
   const now = Date.now();
-  state[symbol].trades = state[symbol].trades.filter(
-    (t) => now - t.time <= TRADE_WINDOW,
-  );
-  state[symbol].prices1m = state[symbol].prices1m.filter(
-    (p) => now - p.time <= PRICE_WINDOW,
-  );
-  state[symbol].cvdHistory = state[symbol].cvdHistory.filter(
-    (d) => now - d.time <= CVD_HISTORY_WINDOW,
-  );
+
+  // ===== HARD LIMIT (quan trọng nhất) =====
+  if (s.trades.length > 2000) {
+    s.trades.splice(0, s.trades.length - 2000);
+  }
+
+  if (s.prices1m.length > 2000) {
+    s.prices1m.splice(0, s.prices1m.length - 2000);
+  }
+
+  if (s.prices15m.length > 500) {
+    s.prices15m.splice(0, s.prices15m.length - 500);
+  }
+
+  if (s.cvdHistory.length > 1000) {
+    s.cvdHistory.splice(0, s.cvdHistory.length - 1000);
+  }
+
+  // ===== TIME WINDOW (phòng hờ) =====
+  s.trades = s.trades.filter(t => now - t.time <= TRADE_WINDOW);
+  s.prices1m = s.prices1m.filter(p => now - p.time <= PRICE_WINDOW);
+  s.cvdHistory = s.cvdHistory.filter(d => now - d.time <= CVD_HISTORY_WINDOW);
+
+  // ===== ABSORPTION BUFFER (nếu có) =====
+  if (s.absorptionBuffer) {
+    s.absorptionBuffer = s.absorptionBuffer.filter(
+      x => now - x.time <= 10 * 60 * 1000
+    );
+    if (s.absorptionBuffer.length > 300) {
+      s.absorptionBuffer.splice(0, s.absorptionBuffer.length - 300);
+    }
+  }
 }
 
 // ================= ORDER FLOW =================
@@ -294,7 +332,6 @@ async function start() {
       trades: [],
       prices1m: [],
       prices15m: [],
-      prices1h: [],
       cvd: 0,
       cvdHistory: [],
       volumeProfile: {},
@@ -306,95 +343,117 @@ async function start() {
   });
 
   const streams = symbols
-    .map((s) => `${s}@trade/${s}@kline_1m/${s}@kline_15m/${s}@kline_1h`)
+    .map((s) => `${s}@trade/${s}@kline_1m/${s}@kline_15m`)
     .join("/");
 
   const ws = new WebSocket(
     `wss://stream.binance.com:9443/stream?streams=${streams}`,
   );
 
-  ws.on("message", (msg) => {
-    const payload = JSON.parse(msg);
-    const symbol = payload.stream.split("@")[0];
-    if (!state[symbol]) return;
+ws.on("message", (msg) => {
+  let payload;
+  try {
+    payload = JSON.parse(msg);
+  } catch {
+    return;
+  }
 
-    const d = payload.data;
+  const symbol = payload.stream.split("@")[0];
+  const s = state[symbol];
+  if (!s) return;
 
-    if (d.e === "trade") {
-      state[symbol].trades.push({
-        time: d.T,
-        qty: +d.q,
-        price: +d.p,
-        isBuyerMaker: d.m,
-      });
-      updateCVD(symbol, d);
-      // detect(symbol);
+  const d = payload.data;
+
+  // ================= TRADE =================
+  if (d.e === "trade") {
+    s.trades.push({
+      time: d.T,
+      qty: +d.q,
+      price: +d.p,
+      isBuyerMaker: d.m,
+    });
+
+    // HARD CAP NGAY TẠI ĐÂY
+    if (s.trades.length > 2000) {
+      s.trades.shift();
     }
 
-    if (d.e === "kline") {
-      const price = +d.k.c;
-      const time = d.k.T;
-      if (d.k.i === "1m") {
-        state[symbol].prices1m.push({ time, price });
+    updateCVD(symbol, d);
+    return;
+  }
 
-        const sym = symbol.toLowerCase();
-        const activeSignal = state[sym]?.activeSignal;
+  // ================= KLINE =================
+  if (d.e !== "kline") return;
 
-        if (activeSignal) {
-          const latestAbsorption = detectAbsorption(sym);
+  const price = +d.k.c;
+  const time = d.k.T;
 
-          // =========================================
-          // 1️⃣ PARTIAL TP – RISK REDUCTION FIRST
-          // =========================================
-          const tpLevel = shouldPartialTP(activeSignal, price);
-          if (tpLevel) {
-            executePartialTP(activeSignal, tpLevel, price, state).catch((err) =>
-              console.error("Partial TP error", err),
-            );
-          }
+  // ---------- 1M ----------
+  if (d.k.i === "1m") {
+    s.prices1m.push({ time, price });
+    if (s.prices1m.length > 2000) {
+      s.prices1m.shift();
+    }
 
-          // =========================================
-          // 2️⃣ TRAILING TARGET – PROFIT PROTECTION
-          // =========================================
-          if (
-            latestAbsorption &&
-            shouldTrailTarget(activeSignal, price, latestAbsorption.score)
-          ) {
-            trailTarget(activeSignal, price);
-          }
+    // 🔥 CLEANUP BẮT BUỘC MỖI 1M
+    cleanup(symbol);
 
-          // =========================================
-          // 3️⃣ SCALE-IN – ONLY AFTER SAFETY
-          // =========================================
-          if (latestAbsorption && shouldScaleIn(activeSignal, price, state)) {
-            executeScaleIn(activeSignal, price, state).catch((err) =>
-              console.error("Scale-in error", err),
-            );
-          }
-        }
+    const activeSignal = s.activeSignal;
 
-        // =========================================
-        // 4️⃣ HARD TP / SL (BROKER LEVEL)
-        // =========================================
-        onPriceTick(symbol.toUpperCase(), price);
+    if (activeSignal) {
+      const latestAbsorption = detectAbsorption(symbol);
 
-        // =========================================
-        // 5️⃣ DETECT NEW SIGNAL
-        // =========================================
-        detect(symbol);
+      // PARTIAL TP
+      const tpLevel = shouldPartialTP(activeSignal, price);
+      if (tpLevel) {
+        executePartialTP(activeSignal, tpLevel, price, state)
+          .catch(err => console.error("Partial TP error", err));
       }
 
-      if (d.k.i === "15m") {
-        state[symbol].prices15m.push({ time, price });
+      // TRAIL TARGET
+      if (
+        latestAbsorption &&
+        shouldTrailTarget(activeSignal, price, latestAbsorption.score)
+      ) {
+        trailTarget(activeSignal, price);
       }
-      if (d.k.i === "1h") {
-        state[symbol].prices1h.push({ time, price });
+
+      // SCALE-IN
+      if (
+        latestAbsorption &&
+        shouldScaleIn(activeSignal, price, state)
+      ) {
+        executeScaleIn(activeSignal, price, state)
+          .catch(err => console.error("Scale-in error", err));
       }
     }
-  });
+
+    // HARD SL / TP
+    onPriceTick(symbol.toUpperCase(), price);
+
+    // SIGNAL DETECTION
+    detect(symbol);
+  }
+
+  // ---------- 15M ----------
+  if (d.k.i === "15m") {
+    s.prices15m.push({ time, price });
+    if (s.prices15m.length > 500) {
+      s.prices15m.shift();
+    }
+  }
+
+  // ❌ 1H: KHUYÊN BỎ TRÊN TV BOX
+});
 
   console.log("🚀 SMART MONEY ENGINE RUNNING (A+B+C+D+F)");
   // startUserStream();
 }
 
 start();
+setInterval(() => {
+  if (global.gc) {
+    global.gc();
+    // console.log("[GC] manual gc triggered");
+  }
+}, 60_000);
