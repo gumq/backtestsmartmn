@@ -347,7 +347,7 @@ async function start() {
         ),
     )
     .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume))
-    .slice(0, TEST_MODE ? 80 : 14)
+    .slice(0, TEST_MODE ? 80 : 15)
     .map((c) => c.symbol.toLowerCase());
 
   // const symbols = res.data
