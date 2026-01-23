@@ -150,9 +150,9 @@ function calcAbsorptionScore({ deltaUSD, rangePct, durationMs }) {
 }
 function getAbsorptionDeltaThreshold(symbol) {
   const s = state[symbol];
-  if (!s) return TEST_MODE ? 80_000 : 120_000;
+  if (!s) return TEST_MODE ? 50_000 : 80_000;
 
-  const base = TEST_MODE ? 80_000 : 100_000;
+  const base = TEST_MODE ? 50_000 : 80_000;
   const v = s.volume24h || 0;
 
   const liquidityMultiplier =
@@ -218,7 +218,7 @@ function detectAbsorption(symbol) {
 
   if (!singleShot && !accumulation) return null;
 
-  if (1) {
+  if (TEST_MODE) {
     console.log(
       `[ABSORB] ${symbol.toUpperCase()} delta=${Math.round(delta)} need=${threshold}`,
     );
@@ -261,10 +261,36 @@ function buildVolumeProfile(symbol) {
 
   state[symbol].volumeProfile = profile;
 }
+function shouldDetect(s) {
+  const now = Date.now();
+  if (!s._lastDetect) {
+    s._lastDetect = now;
+    return true;
+  }
+  if (now - s._lastDetect > 15_000) {
+    s._lastDetect = now;
+    return true;
+  }
+  return false;
+}
+
+function shouldBuildVP(s) {
+  const now = Date.now();
+  if (!s._lastVP) {
+    s._lastVP = now;
+    return true;
+  }
+  if (now - s._lastVP > 120_000) {
+    s._lastVP = now;
+    return true;
+  }
+  return false;
+}
 
 async function detect(symbol) {
   const s = state[symbol];
   if (!s) return;
+  if (!shouldDetect(s)) return;
 
   const now = Date.now();
 
@@ -276,13 +302,19 @@ async function detect(symbol) {
     s._lastHeartbeat = now;
   }
 
-  const MIN_1M_BARS = TEST_MODE ? 20 : 120;
+  const MIN_1M_BARS = TEST_MODE ? 20 : 32;
   if (s.prices1m.length < MIN_1M_BARS) return;
 
   cleanup(symbol);
   buildVolumeProfile(symbol);
+   cleanup(symbol);
 
+     if (shouldBuildVP(s)) {
+    buildVolumeProfile(symbol);
+  }
   const signal = buildSignal(symbol, state);
+
+  
   if (!signal) {
     if (TEST_MODE) console.log(`[SKIP][BUILD] ${symbol.toUpperCase()}`);
     return;
@@ -394,7 +426,7 @@ ws.on("message", (msg) => {
     if (s.prices1m.length > 2000) {
       s.prices1m.shift();
     }
-
+      cleanup(symbol);
     // 🔥 CLEANUP BẮT BUỘC MỖI 1M
     cleanup(symbol);
 
@@ -451,9 +483,4 @@ ws.on("message", (msg) => {
 }
 
 start();
-setInterval(() => {
-  if (global.gc) {
-    global.gc();
-    // console.log("[GC] manual gc triggered");
-  }
-}, 60_000);
+
