@@ -39,7 +39,7 @@ const PRICE_WINDOW = 12 * 60 * 60 * 1000;
 const ALERT_COOLDOWN = TEST_MODE ? 60 * 1000 : 15 * 60 * 1000;
 
 // ---- ORDER FLOW ----
-const ABSORPTION_DELTA_USD = TEST_MODE ? 80_000 : 150_000;
+const ABSORPTION_DELTA_USD = TEST_MODE ? 10_000 : 100_000;
 const ABSORPTION_PRICE_RANGE = TEST_MODE ? 0.005 : 0.0015;
 
 const CVD_HISTORY_WINDOW = 5 * 60 * 1000;
@@ -103,12 +103,12 @@ function cleanup(symbol) {
   const now = Date.now();
 
   // ===== HARD LIMIT (quan trọng nhất) =====
-  if (s.trades.length > 2000) {
-    s.trades.splice(0, s.trades.length - 2000);
+  if (s.trades.length > 1500) {
+    s.trades.splice(0, s.trades.length - 1500);
   }
 
-  if (s.prices1m.length > 2000) {
-    s.prices1m.splice(0, s.prices1m.length - 2000);
+  if (s.prices1m.length > 1500) {
+    s.prices1m.splice(0, s.prices1m.length - 1500);
   }
 
   if (s.prices15m.length > 500) {
@@ -150,9 +150,9 @@ function calcAbsorptionScore({ deltaUSD, rangePct, durationMs }) {
 }
 function getAbsorptionDeltaThreshold(symbol) {
   const s = state[symbol];
-  if (!s) return TEST_MODE ? 1_000 : 80_000;
+  if (!s) return TEST_MODE ? 1_000 : 50_000;
 
-  const base = TEST_MODE ? 1_000 : 80_000;
+  const base = TEST_MODE ? 1_000 : 50_000;
   const v = s.volume24h || 0;
 
   const liquidityMultiplier =
@@ -347,7 +347,7 @@ async function start() {
         ),
     )
     .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume))
-    .slice(0, TEST_MODE ? 80 : 12)
+    .slice(0, TEST_MODE ? 80 : 10)
     .map((c) => c.symbol.toLowerCase());
 
   // const symbols = res.data
@@ -405,7 +405,7 @@ async function start() {
       });
 
       // HARD CAP NGAY TẠI ĐÂY
-      if (s.trades.length > 2000) {
+      if (s.trades.length > 1500) {
         s.trades.shift();
       }
 
@@ -422,7 +422,7 @@ async function start() {
     // ---------- 1M ----------
     if (d.k.i === "1m") {
       s.prices1m.push({ time, price });
-      if (s.prices1m.length > 2000) {
+      if (s.prices1m.length > 1500) {
         s.prices1m.shift();
       }
       cleanup(symbol);
