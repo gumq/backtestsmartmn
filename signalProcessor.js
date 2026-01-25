@@ -158,6 +158,8 @@ module.exports.processSignal = async function (signal, state) {
     openedAt: Date.now(),
     initialEntry: risk.entry,
     currentTarget: risk.target,
+     partialTPs: [],
+  remainingSize: 1.0,
     timeline: [],
     telegramMessageId: null,
   };

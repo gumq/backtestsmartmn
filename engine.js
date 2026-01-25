@@ -150,9 +150,9 @@ function calcAbsorptionScore({ deltaUSD, rangePct, durationMs }) {
 }
 function getAbsorptionDeltaThreshold(symbol) {
   const s = state[symbol];
-  if (!s) return TEST_MODE ? 50_000 : 80_000;
+  if (!s) return TEST_MODE ? 1_000 : 80_000;
 
-  const base = TEST_MODE ? 50_000 : 80_000;
+  const base = TEST_MODE ? 1_000 : 80_000;
   const v = s.volume24h || 0;
 
   const liquidityMultiplier =
@@ -302,7 +302,7 @@ async function detect(symbol) {
     s._lastHeartbeat = now;
   }
 
-  const MIN_1M_BARS = TEST_MODE ? 20 : 32;
+  const MIN_1M_BARS = TEST_MODE ? 3 : 32;
   if (s.prices1m.length < MIN_1M_BARS) return;
 
   cleanup(symbol);
@@ -347,7 +347,7 @@ async function start() {
         ),
     )
     .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume))
-    .slice(0, TEST_MODE ? 80 : 15)
+    .slice(0, TEST_MODE ? 80 : 12)
     .map((c) => c.symbol.toLowerCase());
 
   // const symbols = res.data

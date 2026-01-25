@@ -48,9 +48,9 @@ function gradeSignal({ pWin, rr, absorptionScore }) {
 
   // ===== TEST MODE (NỚI) =====
   if (rr >= 1.8 && absorptionScore >= 6) return "A";
-  if (rr >= 1.2 && absorptionScore >= 4) return "B";
-  if (rr >= 1) return "C";
-
+  if (rr >= 1.2 && absorptionScore >= 2) return "B";
+  if (rr >= 0.7) return "C";
+  if (rr < 0.4) return "D";
   return null;
 }
 
@@ -61,7 +61,7 @@ function validateSignal(signal, state) {
   if (!risk || !context || !meta) return false;
 
   // ================= RR FILTER =================
-  const minRR = TEST_MODE ? 1.2 : 2.0;
+  const minRR = TEST_MODE ? 0.1 : 2.0;
   if (risk.rr < minRR) return false;
 
   // ================= BUILD AI FEATURES =================

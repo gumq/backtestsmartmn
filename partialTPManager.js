@@ -35,6 +35,14 @@ function shouldPartialTP(activeSignal, price) {
 
 // ================= EXECUTE PARTIAL TP =================
 async function executePartialTP(activeSignal, level, price, state) {
+  if (!Array.isArray(activeSignal.partialTPs)) {
+    activeSignal.partialTPs = [];
+  }
+
+  if (typeof activeSignal.remainingSize !== "number") {
+    activeSignal.remainingSize = 1.0;
+  }
+
   const sym = activeSignal.symbol.toLowerCase();
   const s = state[sym];
   if (!s) return;

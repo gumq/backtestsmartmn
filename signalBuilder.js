@@ -25,7 +25,7 @@ function buildSignal(symbol, state) {
 
   // ================= ABSORPTION =================
   const absorption = detectAbsorption(sym, state, {
-    ABSORPTION_DELTA_USD: TEST_MODE ? 20_000 : 300_000,
+    ABSORPTION_DELTA_USD: TEST_MODE ? 10_000 : 80_000,
   });
   if (!absorption) return null;
 
