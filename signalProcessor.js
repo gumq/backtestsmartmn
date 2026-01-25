@@ -8,7 +8,7 @@ const { logTrade } = require("./tradeLogger");
 const { notifyNewSignal } = require("./telegramNotifier");
 
 const TEST_MODE = process.env.TEST_MODE === "true";
-const ALERT_COOLDOWN = TEST_MODE ? 60_000 : 15 * 60_000;
+const ALERT_COOLDOWN = TEST_MODE ? 60_000 : 10 * 60_000;
 
 // ================= UTILS =================
 function clamp(x, min, max) {
@@ -132,7 +132,7 @@ module.exports.processSignal = async function (signal, state) {
     (score.grade === "A+" ? 1.3 : score.grade === "A" ? 1 : 0.6) *
     (context.absorption.score >= 120 ? 1.2 : 1);
 
-  size = clamp(size, TEST_MODE ? 0.2 : 0.3, 1.3);
+  size = clamp(size, TEST_MODE ? 0.2 : 0.3, 1.0);
 
   // ===== PORTFOLIO =====
   const alloc = allocateCapital({

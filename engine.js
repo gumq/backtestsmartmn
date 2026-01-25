@@ -39,7 +39,7 @@ const PRICE_WINDOW = 12 * 60 * 60 * 1000;
 const ALERT_COOLDOWN = TEST_MODE ? 60 * 1000 : 15 * 60 * 1000;
 
 // ---- ORDER FLOW ----
-const ABSORPTION_DELTA_USD = TEST_MODE ? 80_000 : 300_000;
+const ABSORPTION_DELTA_USD = TEST_MODE ? 80_000 : 150_000;
 const ABSORPTION_PRICE_RANGE = TEST_MODE ? 0.005 : 0.0015;
 
 const CVD_HISTORY_WINDOW = 5 * 60 * 1000;
@@ -280,7 +280,7 @@ function shouldBuildVP(s) {
     s._lastVP = now;
     return true;
   }
-  if (now - s._lastVP > 120_000) {
+  if (now - s._lastVP > 100_000) {
     s._lastVP = now;
     return true;
   }
@@ -302,7 +302,7 @@ async function detect(symbol) {
     s._lastHeartbeat = now;
   }
 
-  const MIN_1M_BARS = TEST_MODE ? 3 : 32;
+  const MIN_1M_BARS = TEST_MODE ? 3 : 30;
   if (s.prices1m.length < MIN_1M_BARS) return;
 
   cleanup(symbol);

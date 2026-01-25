@@ -61,7 +61,7 @@ function validateSignal(signal, state) {
   if (!risk || !context || !meta) return false;
 
   // ================= RR FILTER =================
-  const minRR = TEST_MODE ? 0.1 : 2.0;
+  const minRR = TEST_MODE ? 0.1 : 1.9;
   if (risk.rr < minRR) return false;
 
   // ================= BUILD AI FEATURES =================

@@ -7,7 +7,7 @@ const { addEvent, updateSignal } = require("./telegramNotifier");
 const TEST_MODE = process.env.TEST_MODE === "true";
 // ================= CONFIG =================
 const MAX_SCALE_INS = 1;
-const MIN_ABSORPTION_SCORE = TEST_MODE ? 2.0 : 6.0;
+const MIN_ABSORPTION_SCORE = TEST_MODE ? 2.0 : 4.0;
 const MIN_RR_BEFORE_SCALE = 0.8;
 
 // Size scale-in theo grade
