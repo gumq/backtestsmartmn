@@ -11,6 +11,7 @@ const fs = require("fs");
 const { shouldPartialTP, executePartialTP } = require("./partialTPManager");
 
 const { addEvent, updateSignal } = require("./telegramNotifier");
+const { startTelegramCommand } = require("./telegramCommand");
 
 const {
   executeLong,
@@ -36,10 +37,10 @@ const TEST_MODE = process.env.TEST_MODE === "true";
 // ================= CONFIG =================
 const TRADE_WINDOW = 15 * 60 * 1000;
 const PRICE_WINDOW = 12 * 60 * 60 * 1000;
-const ALERT_COOLDOWN = TEST_MODE ? 60 * 1000 : 15 * 60 * 1000;
+const ALERT_COOLDOWN = TEST_MODE ? 60 * 1000 : 2 * 60 * 1000;
 
 // ---- ORDER FLOW ----
-const ABSORPTION_DELTA_USD = TEST_MODE ? 10_000 : 100_000;
+const ABSORPTION_DELTA_USD = TEST_MODE ? 10_000 : 200_000;
 const ABSORPTION_PRICE_RANGE = TEST_MODE ? 0.005 : 0.0015;
 
 const CVD_HISTORY_WINDOW = 5 * 60 * 1000;
@@ -96,6 +97,50 @@ onPositionClosed((symbol, info) => {
 //     (d) => now - d.time <= CVD_HISTORY_WINDOW,
 //   );
 // }
+function hardCleanup(symbol) {
+  const s = state[symbol];
+  if (!s) return;
+
+  if (s.trades.length > 5500) {
+    s.trades.splice(0, s.trades.length - 5500);
+  }
+
+  if (s.prices1m.length > 5500) {
+    s.prices1m.splice(0, s.prices1m.length - 5500);
+  }
+
+  if (s.prices15m.length > 1500) {
+    s.prices15m.splice(0, s.prices15m.length - 1500);
+  }
+
+  if (s.cvdHistory.length > 1000) {
+    s.cvdHistory.splice(0, s.cvdHistory.length - 1000);
+  }
+
+  if (s.absorptionBuffer && s.absorptionBuffer.length > 300) {
+    s.absorptionBuffer.splice(
+      0,
+      s.absorptionBuffer.length - 300
+    );
+  }
+}
+function softCleanup(symbol) {
+  const s = state[symbol];
+  if (!s) return;
+
+  const now = Date.now();
+
+  s.trades = s.trades.filter(t => now - t.time <= TRADE_WINDOW);
+  s.prices1m = s.prices1m.filter(p => now - p.time <= PRICE_WINDOW);
+  s.cvdHistory = s.cvdHistory.filter(d => now - d.time <= CVD_HISTORY_WINDOW);
+
+  if (s.absorptionBuffer) {
+    s.absorptionBuffer = s.absorptionBuffer.filter(
+      x => now - x.time <= 10 * 60 * 1000
+    );
+  }
+}
+
 function cleanup(symbol) {
   const s = state[symbol];
   if (!s) return;
@@ -103,16 +148,16 @@ function cleanup(symbol) {
   const now = Date.now();
 
   // ===== HARD LIMIT (quan trọng nhất) =====
-  if (s.trades.length > 1500) {
-    s.trades.splice(0, s.trades.length - 1500);
+  if (s.trades.length > 5500) {
+    s.trades.splice(0, s.trades.length - 5500);
   }
 
-  if (s.prices1m.length > 1500) {
-    s.prices1m.splice(0, s.prices1m.length - 1500);
+  if (s.prices1m.length > 5500) {
+    s.prices1m.splice(0, s.prices1m.length - 5500);
   }
 
-  if (s.prices15m.length > 500) {
-    s.prices15m.splice(0, s.prices15m.length - 500);
+  if (s.prices15m.length > 1500) {
+    s.prices15m.splice(0, s.prices15m.length - 1500);
   }
 
   if (s.cvdHistory.length > 1000) {
@@ -150,21 +195,21 @@ function calcAbsorptionScore({ deltaUSD, rangePct, durationMs }) {
 }
 function getAbsorptionDeltaThreshold(symbol) {
   const s = state[symbol];
-  if (!s) return TEST_MODE ? 1_000 : 50_000;
+  if (!s) return TEST_MODE ? 1_000 : 2_000;
 
-  const base = TEST_MODE ? 1_000 : 50_000;
+  const base = TEST_MODE ? 1_000 : 2_000;
   const v = s.volume24h || 0;
 
   const liquidityMultiplier =
-    v > 2_000_000_000
+    v > 1_000_000_000
       ? 4
-      : v > 1_000_000_000
+      : v > 500_000_000
         ? 3
-        : v > 800_000_000
-          ? 2.5
-          : v > 500_000_000
-            ? 2
-            : v > 100_000_000
+        : v > 200_000_000
+          ? 2
+          : v > 100_000_000
+            ? 1
+            : v > 50_000_000
               ? 1.5
               : 1;
 
@@ -218,7 +263,7 @@ function detectAbsorption(symbol) {
 
   if (!singleShot && !accumulation) return null;
 
-  if (TEST_MODE) {
+  if (1) {
     console.log(
       `[ABSORB] ${symbol.toUpperCase()} delta=${Math.round(delta)} need=${threshold}`,
     );
@@ -267,7 +312,7 @@ function shouldDetect(s) {
     s._lastDetect = now;
     return true;
   }
-  if (now - s._lastDetect > 15_000) {
+  if (now - s._lastDetect > 10_000) {
     s._lastDetect = now;
     return true;
   }
@@ -280,7 +325,7 @@ function shouldBuildVP(s) {
     s._lastVP = now;
     return true;
   }
-  if (now - s._lastVP > 100_000) {
+  if (now - s._lastVP > 10_000) {
     s._lastVP = now;
     return true;
   }
@@ -288,6 +333,7 @@ function shouldBuildVP(s) {
 }
 
 async function detect(symbol) {
+    state._lastDetectGlobal = Date.now(); 
   const s = state[symbol];
   if (!s) return;
   if (!shouldDetect(s)) return;
@@ -295,32 +341,41 @@ async function detect(symbol) {
   const now = Date.now();
 
   // ===== HEARTBEAT =====
-  if (!s._lastHeartbeat || now - s._lastHeartbeat > 60_000) {
+  if (!s._lastHeartbeat || now - s._lastHeartbeat > 20_000) {
     console.log(
       `[HEARTBEAT] ${symbol.toUpperCase()} | 1m=${s.prices1m.length} | trades=${s.trades.length}`,
     );
     s._lastHeartbeat = now;
   }
 
-  const MIN_1M_BARS = TEST_MODE ? 3 : 30;
+  const MIN_1M_BARS = TEST_MODE ? 3 : 7;
   if (s.prices1m.length < MIN_1M_BARS) return;
 
-  cleanup(symbol);
-  buildVolumeProfile(symbol);
-  cleanup(symbol);
+  // cleanup(symbol);
+  // buildVolumeProfile(symbol);
+  // cleanup(symbol);
+hardCleanup(symbol);
 
+if (!s._lastSoftCleanup || Date.now() - s._lastSoftCleanup > 5 * 20_000) {
+  softCleanup(symbol);
+  s._lastSoftCleanup = Date.now();
+}
+
+if (shouldBuildVP(s)) {
+  buildVolumeProfile(symbol);
+}
   if (shouldBuildVP(s)) {
     buildVolumeProfile(symbol);
   }
   const signal = buildSignal(symbol, state);
 
   if (!signal) {
-    if (TEST_MODE) console.log(`[SKIP][BUILD] ${symbol.toUpperCase()}`);
+    if (1) console.log(`[SKIP][BUILD] ${symbol.toUpperCase()}`);
     return;
   }
 
   if (!validateSignal(signal, state)) {
-    if (TEST_MODE)
+    if (1)
       console.log(
         `[SKIP][VALIDATE] ${symbol.toUpperCase()} | grade=${signal.score?.grade}`,
       );
@@ -347,7 +402,7 @@ async function start() {
         ),
     )
     .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume))
-    .slice(0, TEST_MODE ? 80 : 10)
+    .slice(0, TEST_MODE ? 80 : 100)
     .map((c) => c.symbol.toLowerCase());
 
   // const symbols = res.data
@@ -382,6 +437,7 @@ async function start() {
   );
 
   ws.on("message", (msg) => {
+      state._lastWsTick = Date.now(); 
     let payload;
     try {
       payload = JSON.parse(msg);
@@ -405,7 +461,7 @@ async function start() {
       });
 
       // HARD CAP NGAY TẠI ĐÂY
-      if (s.trades.length > 1500) {
+      if (s.trades.length > 5500) {
         s.trades.shift();
       }
 
@@ -422,13 +478,18 @@ async function start() {
     // ---------- 1M ----------
     if (d.k.i === "1m") {
       s.prices1m.push({ time, price });
-      if (s.prices1m.length > 1500) {
+      if (s.prices1m.length > 5500) {
         s.prices1m.shift();
       }
-      cleanup(symbol);
-      // 🔥 CLEANUP BẮT BUỘC MỖI 1M
-      cleanup(symbol);
+      // cleanup(symbol);
+      // // 🔥 CLEANUP BẮT BUỘC MỖI 1M
+      // cleanup(symbol);
+hardCleanup(symbol);
 
+if (!s._lastSoftCleanup || Date.now() - s._lastSoftCleanup > 5 * 60_000) {
+  softCleanup(symbol);
+  s._lastSoftCleanup = Date.now();
+}
       const activeSignal = s.activeSignal;
 
       if (activeSignal) {
@@ -477,6 +538,7 @@ async function start() {
   });
 
   console.log("🚀 SMART MONEY ENGINE RUNNING (A+B+C+D+F)");
+  startTelegramCommand(state);
   // startUserStream();
 }
 

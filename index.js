@@ -14,7 +14,7 @@ const TELEGRAM_CHAT_ID = '7040574657';
 // ================= CONFIG =================
 const TRADE_WINDOW = 15 * 60 * 1000;
 const PRICE_WINDOW = 12 * 60 * 60 * 1000;
-const ALERT_COOLDOWN = TEST_MODE ? 60 * 1000 : 15 * 60 * 1000;
+const ALERT_COOLDOWN = TEST_MODE ? 60 * 1000 : 1 * 60 * 1000;
 
 
 const SIDEWAY_STDDEV = 0.004;

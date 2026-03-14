@@ -1,7 +1,6 @@
 // ==================================================
-// TELEGRAM NOTIFIER – SIGNAL TIMELINE (SAFE MODE)
-// One Signal = One Message (Edited Over Time)
-// NO MARKDOWN (ANTI 400 ERROR)
+// TELEGRAM NOTIFIER – TV BOX SAFE (NO POLLING)
+// Fire & Forget + Backoff + Anti-Die
 // ==================================================
 
 const axios = require("axios");
@@ -9,86 +8,99 @@ const axios = require("axios");
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-  console.warn("⚠️ Telegram env not set");
+// ===== INTERNAL STATE =====
+let telegramDisabled = false;
+let retryAfter = 0;
+
+// ===== CONFIG =====
+const REQUEST_TIMEOUT = 8_000;        // 8s là đủ
+const BACKOFF_TIME = 10 * 60 * 1000;  // 10 phút nghỉ khi lỗi
+
+// ================= UTILS =================
+function canSend() {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return false;
+  if (telegramDisabled) return false;
+  if (Date.now() < retryAfter) return false;
+  return true;
+}
+
+function markTelegramError() {
+  retryAfter = Date.now() + BACKOFF_TIME;
 }
 
 // ================= CORE SEND =================
-async function sendMessage(text) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return null;
+async function safeSend(payload) {
+  if (!canSend()) return null;
 
   try {
     const res = await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {
-        chat_id: TELEGRAM_CHAT_ID,
-        text: String(text),
-      }
+      payload,
+      { timeout: REQUEST_TIMEOUT }
     );
-    return res.data?.result?.message_id;
+    return res.data?.result;
   } catch (err) {
-    console.error(
-      "❌ TELEGRAM SEND ERROR:",
-      err?.response?.data || err.message
-    );
+    // ❌ KHÔNG SPAM LOG
+    markTelegramError();
     return null;
   }
 }
 
-async function editMessage(messageId, text) {
-  if (!messageId) return;
+// ================= EDIT MESSAGE =================
+async function safeEdit(payload) {
+  if (!canSend()) return;
 
   try {
     await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`,
-      {
-        chat_id: TELEGRAM_CHAT_ID,
-        message_id: messageId,
-        text: String(text),
-      }
+      payload,
+      { timeout: REQUEST_TIMEOUT }
     );
   } catch (err) {
-    console.error(
-      "❌ TELEGRAM EDIT ERROR:",
-      err?.response?.data || err.message
-    );
+    markTelegramError();
   }
 }
 
-// ================= FORMATTERS =================
+// ================= FORMAT =================
 function formatHeader(signal) {
-  return (
-`🟢 ${signal.symbol} | SIGNAL ${signal.score?.grade ?? "N/A"}
-Strategy: ${signal.meta?.strategy ?? "N/A"}
+  return `
+🟢 *${signal.symbol} | SIGNAL ${signal.score.grade}*
+Strategy: ${signal.meta?.strategy || "N/A"}
 
 Entry: ${signal.risk.entry}
 Stop: ${signal.risk.stop}
-Target: ${signal.currentTarget ?? signal.risk.target}
-RR: ${signal.risk.rr.toFixed(2)}
+Target: ${signal.currentTarget || signal.risk.target}
+RR: ${signal.risk.rr}
 
-Absorption score: ${signal.context.absorption.score}
-Regime: ${signal.meta?.regime ?? "N/A"}
+Absorption: ${signal.context?.absorption?.score}
+Regime: ${signal.context?.regime || signal.meta?.regime}
 
-----------------------------------------`
-  );
+━━━━━━━━━━━━━━━━━━
+`.trim();
 }
 
-function formatTimeline(events = []) {
-  if (!events.length) return "- no updates yet";
-  return events.map(e => `- ${e}`).join("\n");
+function formatTimeline(timeline) {
+  if (!timeline || !timeline.length) return "_(no updates yet)_";
+  return timeline.map(e => `• ${e}`).join("\n");
 }
 
-// ================= MAIN API =================
+// ================= PUBLIC API =================
 async function notifyNewSignal(activeSignal) {
-  activeSignal.timeline = activeSignal.timeline || [];
-
   const text =
     formatHeader(activeSignal) +
-    `\nTimeline:\n` +
+    `\n\n📌 *Timeline*\n` +
     formatTimeline(activeSignal.timeline);
 
-  const msgId = await sendMessage(text);
-  activeSignal.telegramMessageId = msgId;
+  const result = await safeSend({
+    chat_id: TELEGRAM_CHAT_ID,
+    text,
+    parse_mode: "Markdown",
+    disable_web_page_preview: true,
+  });
+
+  if (result?.message_id) {
+    activeSignal.telegramMessageId = result.message_id;
+  }
 }
 
 async function updateSignal(activeSignal) {
@@ -96,18 +108,22 @@ async function updateSignal(activeSignal) {
 
   const text =
     formatHeader(activeSignal) +
-    `\nTimeline:\n` +
+    `\n\n📌 *Timeline*\n` +
     formatTimeline(activeSignal.timeline);
 
-  await editMessage(activeSignal.telegramMessageId, text);
+  await safeEdit({
+    chat_id: TELEGRAM_CHAT_ID,
+    message_id: activeSignal.telegramMessageId,
+    text,
+    parse_mode: "Markdown",
+    disable_web_page_preview: true,
+  });
 }
 
-// ================= EVENT HELPER =================
 function addEvent(activeSignal, text) {
   if (!activeSignal.timeline) activeSignal.timeline = [];
-
   activeSignal.timeline.push(
-    `${new Date().toLocaleTimeString()} | ${text}`
+    `${new Date().toLocaleTimeString()} – ${text}`
   );
 }
 

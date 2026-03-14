@@ -1,0 +1,6 @@
+module.exports = {
+  INTERVAL_MINUTES: 5,
+  SCORE_THRESHOLD: 0.65,
+  SYMBOL_LIMIT: 100,
+  STABLE_COINS: ["USDT","BUSD","USDC","TUSD","FDUSD","USD1"]
+};

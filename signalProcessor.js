@@ -8,7 +8,7 @@ const { logTrade } = require("./tradeLogger");
 const { notifyNewSignal } = require("./telegramNotifier");
 
 const TEST_MODE = process.env.TEST_MODE === "true";
-const ALERT_COOLDOWN = TEST_MODE ? 60_000 : 10 * 60_000;
+const ALERT_COOLDOWN = TEST_MODE ? 60_000 : 5 * 60_000;
 
 // ================= UTILS =================
 function clamp(x, min, max) {
@@ -74,7 +74,7 @@ module.exports.processSignal = async function (signal, state) {
   if (!state?.[sym]) return;
 
   // ===== LIVE MODE FILTER =====
-  if (!TEST_MODE && score.grade !== "A+" && score.grade !== "A") return;
+if (!TEST_MODE && !["A+", "A", "B"].includes(score.grade)) return;
 
   // ===== COOLDOWN =====
   const now = Date.now();
@@ -102,9 +102,10 @@ module.exports.processSignal = async function (signal, state) {
   const lastPrice = prices1m?.at(-1)?.price;
   if (!lastPrice) return;
 
-  const pullbackOk =
-    lastPrice >= risk.entry * 0.999 &&
-    lastPrice <= risk.entry * 1.001;
+const pullbackOk =
+  lastPrice >= risk.entry * 0.998 &&
+  lastPrice <= risk.entry * 1.002;
+
 
   const hi = Math.max(...prices1m.map(p => p.price));
   const lo = Math.min(...prices1m.map(p => p.price));
@@ -129,7 +130,7 @@ module.exports.processSignal = async function (signal, state) {
   // ===== SIZE =====
   const baseRisk = Number(process.env.MAX_RISK_PER_TRADE || 0.01);
   let size =
-    (score.grade === "A+" ? 1.3 : score.grade === "A" ? 1 : 0.6) *
+    (score.grade === "A+" ? 1.2 : score.grade === "A" ? 0.8 : 0.4) *
     (context.absorption.score >= 120 ? 1.2 : 1);
 
   size = clamp(size, TEST_MODE ? 0.2 : 0.3, 1.0);

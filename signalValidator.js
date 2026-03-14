@@ -40,9 +40,9 @@ function predictWinProbability(features) {
 function gradeSignal({ pWin, rr, absorptionScore }) {
   // ===== LIVE MODE (NGHIÊM) =====
   if (!TEST_MODE) {
-    if (rr >= 2.5 && pWin >= 0.8 && absorptionScore >= 8) return "A+";
-    if (rr >= 2.0 && pWin >= 0.75 && absorptionScore >= 6) return "A";
-    if (rr >= 1.6 && pWin >= 0.65 && absorptionScore >= 4) return "B";
+if (rr >= 2.2 && pWin >= 0.78 && absorptionScore >= 7) return "A+";
+if (rr >= 1.8 && pWin >= 0.70 && absorptionScore >= 4) return "A";
+if (rr >= 1.4 && absorptionScore >= 3) return "B";
     return null;
   }
 
@@ -61,7 +61,7 @@ function validateSignal(signal, state) {
   if (!risk || !context || !meta) return false;
 
   // ================= RR FILTER =================
-  const minRR = TEST_MODE ? 0.1 : 1.9;
+  const minRR = TEST_MODE ? 0.1 : 1.5;
   if (risk.rr < minRR) return false;
 
   // ================= BUILD AI FEATURES =================

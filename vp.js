@@ -7,7 +7,7 @@ function getVPLevels(symbol, state, TEST_MODE) {
   if (!s || !s.volumeProfile) return null;
 
   const vp = s.volumeProfile;
-  const MIN_VP_BINS = TEST_MODE ? 1 : 6;
+  const MIN_VP_BINS = TEST_MODE ? 1 : 3;
 
   if (Object.keys(vp).length < MIN_VP_BINS) return null;
 
